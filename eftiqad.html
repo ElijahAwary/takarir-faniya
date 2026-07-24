@@ -156,6 +156,7 @@
     <div class="status"><span class="dot"></span> متصل — <span id="topRecordCount">0</span> أسرة</div>
     <div style="display:flex; align-items:center; gap:10px;">
       <span id="syncMsg" style="font-size:.78rem;"></span>
+      <button class="btn-sheet" id="btnPushNow" style="background:var(--gold-light); color:var(--gold); border-color:#e8d5a8;">⬆️ رفع الآن</button>
       <button class="btn-sheet" id="btnSyncNow">🔄 مزامنة الآن</button>
     </div>
   </div>
@@ -238,6 +239,7 @@
       <button class="btn btn-cream btn-sm" id="btnPullRefresh">🔄 تحديث</button>
       <button class="btn btn-green btn-sm" id="btnCsvRecords">⬆️ CSV</button>
       <select id="filterStreetRecords" style="max-width:180px;"><option value="">كل الشوارع</option></select>
+      <select id="filterFatherRecords" style="max-width:200px;"><option value="">كل آباء الاعتراف</option></select>
       <input type="text" id="searchBox" placeholder="بحث بالاسم أو العنوان أو التليفون..." style="flex:1; min-width:180px;">
     </div>
     <div class="table-wrap">
@@ -257,8 +259,11 @@
   <div class="panel" id="panel-reports">
     <div class="filters-row">
       <div class="field"><label>الشارع</label><select id="rep_street"><option value="">الكل</option></select></div>
-      <div class="field"><label>أب الاعتراف</label>
+      <div class="field"><label>حسب وجود أب الاعتراف</label>
         <select id="rep_conf"><option value="">الكل</option><option value="has">له أب اعتراف</option><option value="no">بلا أب اعتراف</option></select>
+      </div>
+      <div class="field"><label>أب الاعتراف (اسم محدد)</label>
+        <select id="rep_father"><option value="">الكل</option></select>
       </div>
       <div class="field"><label>المرحلة التعليمية للأبناء</label>
         <select id="rep_stage"><option value="">الكل</option><option>حضانة</option><option>ابتدائي</option><option>إعدادي</option><option>ثانوي</option><option>كلية</option><option>معهد عالي</option><option>معهد متوسط</option></select>
@@ -372,6 +377,11 @@
     settings.streets.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; fr.appendChild(o); });
     const rs = $('rep_street'); rs.innerHTML='<option value="">الكل</option>';
     settings.streets.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s; rs.appendChild(o); });
+    const realFathers = settings.fathers.filter(f=>f && f!==NONE_FATHER);
+    const ffr = $('filterFatherRecords'); ffr.innerHTML='<option value="">كل آباء الاعتراف</option>';
+    realFathers.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f; ffr.appendChild(o); });
+    const rf = $('rep_father'); rf.innerHTML='<option value="">الكل</option>';
+    realFathers.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f; rf.appendChild(o); });
   }
 
   function renderChildrenRows(children){
@@ -543,12 +553,19 @@
     return parts.join(' - ');
   }
 
+  function matchesFather(f, fatherName){
+    if(!fatherName) return true;
+    return f.husbandConf===fatherName || f.wifeConf===fatherName;
+  }
+
   function renderRecordsTable(){
     const q = ($('searchBox').value||'').trim().toLowerCase();
     const streetFilter = $('filterStreetRecords').value;
+    const fatherFilter = $('filterFatherRecords').value;
     const body = $('recordsBody'); body.innerHTML='';
     let list = families.filter(f=>{
       if(streetFilter && f.street!==streetFilter) return false;
+      if(!matchesFather(f, fatherFilter)) return false;
       if(!q) return true;
       const hay = [f.husbandName,f.wifeName,f.address,f.husbandPhone,f.wifePhone].join(' ').toLowerCase();
       return hay.includes(q);
@@ -576,6 +593,7 @@
   }
   $('searchBox').addEventListener('input', renderRecordsTable);
   $('filterStreetRecords').addEventListener('change', renderRecordsTable);
+  $('filterFatherRecords').addEventListener('change', renderRecordsTable);
   $('btnCsvRecords').onclick = ()=>{
     const rows = [['مسلسل','اسم الزوج/العائل','العنوان/الشارع','تليفون الزوج','اب اعتراف الزوج','اسم الزوجة','تليفون الزوجة','اب اعتراف الزوجة','عدد الأبناء','تاريخ آخر افتقاد','خادم أنبا ابرآم','ملاحظات خاصة']];
     families.forEach(f=>rows.push([f.serial,f.husbandName,combineAddr(f),f.husbandPhone,f.husbandConf,f.wifeName,f.wifePhone,f.wifeConf,(f.children||[]).length,f.lastVisitDate,f.servantName,f.notes]));
@@ -644,11 +662,13 @@
   function renderReports(){
     const street = $('rep_street').value;
     const confFilter = $('rep_conf').value;
+    const fatherFilter = $('rep_father').value;
     const stageFilter = $('rep_stage').value;
     let list = families.filter(f=>{
       if(street && f.street!==street) return false;
       if(confFilter==='has' && (!f.husbandConf || f.husbandConf===NONE_FATHER) && (!f.wifeConf || f.wifeConf===NONE_FATHER)) return false;
       if(confFilter==='no' && ((f.husbandConf && f.husbandConf!==NONE_FATHER) || (f.wifeConf && f.wifeConf!==NONE_FATHER))) return false;
+      if(!matchesFather(f, fatherFilter)) return false;
       if(stageFilter && !familyHasStage(f, stageFilter)) return false;
       return true;
     });
@@ -670,7 +690,7 @@
     });
     return list;
   }
-  ['rep_street','rep_conf','rep_stage'].forEach(id=>$(id).addEventListener('change', renderReports));
+  ['rep_street','rep_conf','rep_father','rep_stage'].forEach(id=>$(id).addEventListener('change', renderReports));
   $('btnCsvReports').onclick = ()=>{
     const list = renderReports();
     const rows = [['م','اسم الزوج/العائل','الشارع','العنوان','تليفون الزوج','اسم الزوجة','عدد الأولاد','أب اعتراف الزوج','أب اعتراف الزوجة','ملاحظات']];
@@ -849,6 +869,7 @@
       return false;
     }catch(err){ showSyncStatus('تعذر الاتصال بجوجل شيت. خطأ: '+err.message, 'err'); return false; }
   }
+  $('btnPushNow').onclick = ()=>pushToSheet(false);
   $('btnSyncNow').onclick = ()=>pullFromSheet(false);
   $('btnPullRefresh').onclick = ()=>pullFromSheet(false);
 
