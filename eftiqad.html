@@ -209,6 +209,8 @@
 
         <div class="field"><label>أب اعتراف الزوجة</label><select id="f_wifeConf"></select></div>
         <div class="field"><label>عدد الأولاد</label><input type="number" id="f_childrenCount" min="0" max="20" value="0"></div>
+        <div class="field"><label>تاريخ آخر افتقاد</label><input type="date" id="f_lastVisit"></div>
+        <div class="field"><label>خادم أنبا ابرآم</label><input type="text" id="f_servant" placeholder="اسم الخادم المسؤول"></div>
 
         <div class="field full">
           <label>ملاحظات خاصة بالأسرة</label>
@@ -242,7 +244,7 @@
       <table>
         <thead><tr>
           <th>م</th><th>اسم الزوج/العائل</th><th>العنوان/الشارع</th><th>تليفون الزوج</th><th>اب اعتراف الزوج</th>
-          <th>اسم الزوجة</th><th>تليفون الزوجة</th><th>اب اعتراف الزوجة</th><th>عدد الأبناء</th><th>ملاحظات خاصة</th><th>إجراءات</th>
+          <th>اسم الزوجة</th><th>تليفون الزوجة</th><th>اب اعتراف الزوجة</th><th>عدد الأبناء</th><th>تاريخ آخر افتقاد</th><th>خادم أنبا ابرآم</th><th>ملاحظات خاصة</th><th>إجراءات</th>
         </tr></thead>
         <tbody id="recordsBody"></tbody>
       </table>
@@ -487,6 +489,8 @@
     const children = family?.children || [];
     $('f_childrenCount').value = children.length;
     renderChildrenRows(children);
+    $('f_lastVisit').value = family?.lastVisitDate || '';
+    $('f_servant').value = family?.servantName || '';
     $('f_notes').value = family?.notes || '';
     $('notesCount').textContent = (family?.notes||'').length;
   }
@@ -503,6 +507,8 @@
       address: editingId ? (families.find(f=>f.id===editingId).address||'') : '',
       wifeName: $('f_wifeName').value.trim(), wifePhone: $('f_wifePhone').value.trim(), wifeConf: $('f_wifeConf').value,
       children: collectChildrenFromForm(),
+      lastVisitDate: $('f_lastVisit').value,
+      servantName: $('f_servant').value.trim(),
       notes: $('f_notes').value.slice(0,200)
     };
     if(editingId){ const i=families.findIndex(f=>f.id===editingId); families[i]=data; }
@@ -555,7 +561,7 @@
       tr.innerHTML = `
         <td>${f.serial}</td><td>${f.husbandName||''}</td><td>${combineAddr(f)}</td><td>${f.husbandPhone||''}</td>
         <td>${confPill(f.husbandConf)}</td><td>${f.wifeName||''}</td><td>${f.wifePhone||''}</td>
-        <td>${confPill(f.wifeConf)}</td><td>${(f.children||[]).length}</td><td>${f.notes||''}</td>
+        <td>${confPill(f.wifeConf)}</td><td>${(f.children||[]).length}</td><td>${f.lastVisitDate||''}</td><td>${f.servantName||''}</td><td>${f.notes||''}</td>
         <td>
           <button class="icon-btn view" title="عرض التفاصيل">👁️</button>
           <button class="icon-btn edit" title="تعديل">✎</button>
@@ -571,8 +577,8 @@
   $('searchBox').addEventListener('input', renderRecordsTable);
   $('filterStreetRecords').addEventListener('change', renderRecordsTable);
   $('btnCsvRecords').onclick = ()=>{
-    const rows = [['مسلسل','اسم الزوج/العائل','العنوان/الشارع','تليفون الزوج','اب اعتراف الزوج','اسم الزوجة','تليفون الزوجة','اب اعتراف الزوجة','عدد الأبناء','ملاحظات خاصة']];
-    families.forEach(f=>rows.push([f.serial,f.husbandName,combineAddr(f),f.husbandPhone,f.husbandConf,f.wifeName,f.wifePhone,f.wifeConf,(f.children||[]).length,f.notes]));
+    const rows = [['مسلسل','اسم الزوج/العائل','العنوان/الشارع','تليفون الزوج','اب اعتراف الزوج','اسم الزوجة','تليفون الزوجة','اب اعتراف الزوجة','عدد الأبناء','تاريخ آخر افتقاد','خادم أنبا ابرآم','ملاحظات خاصة']];
+    families.forEach(f=>rows.push([f.serial,f.husbandName,combineAddr(f),f.husbandPhone,f.husbandConf,f.wifeName,f.wifePhone,f.wifeConf,(f.children||[]).length,f.lastVisitDate,f.servantName,f.notes]));
     csvDownload('سجلات_الافتقاد.csv', rows);
   };
 
@@ -614,6 +620,8 @@
           <div>👨 الزوج/العائل: <b>${f.husbandName||'—'}</b> — ☎️ ${f.husbandPhone||'—'} — ${confPill(f.husbandConf)}</div>
           <div>👩 الزوجة: <b>${f.wifeName||'—'}</b> — ☎️ ${f.wifePhone||'—'} — ${confPill(f.wifeConf)}</div>
           <div>📍 العنوان/الشارع: ${combineAddr(f)||'—'}</div>
+          <div>📅 تاريخ آخر افتقاد: ${f.lastVisitDate||'—'}</div>
+          <div>🙋 خادم أنبا ابرآم: ${f.servantName||'—'}</div>
           ${f.notes?('<div>📝 ملاحظات خاصة: '+f.notes+'</div>'):''}
         </div>
       </div>
@@ -757,7 +765,7 @@
   function familyToRow(f){
     return { serial:f.serial, husbandName:f.husbandName, addressStreet: (function(){ const p=[f.street,f.address].filter(Boolean); return p.join(' - '); })(),
       husbandPhone:f.husbandPhone, husbandConf:f.husbandConf, wifeName:f.wifeName, wifePhone:f.wifePhone, wifeConf:f.wifeConf,
-      childrenCount:(f.children||[]).length, notes:f.notes||'' };
+      childrenCount:(f.children||[]).length, lastVisitDate:f.lastVisitDate||'', servantName:f.servantName||'', notes:f.notes||'' };
   }
   function childRowsFor(f){
     return (f.children||[]).map(c=>({
@@ -782,7 +790,7 @@
         id: uid(), serial, husbandName:r.husbandName||'', street, address,
         husbandPhone:r.husbandPhone||'', husbandConf:r.husbandConf||'',
         wifeName:r.wifeName||'', wifePhone:r.wifePhone||'', wifeConf:r.wifeConf||'',
-        children:[], notes:r.notes||''
+        children:[], lastVisitDate:r.lastVisitDate||'', servantName:r.servantName||'', notes:r.notes||''
       });
       const key = String(isNaN(declared) ? serial : declared);
       (serialToIndexes[key] = serialToIndexes[key]||[]).push(list.length-1);
