@@ -319,18 +319,33 @@
   let settings = { streets: ['الشارع الرئيسي','شارع النور','شارع الكنيسة'], fathers: ['أبونا مرقس','أبونا يوأنس', NONE_FATHER], sheetUrl: SHEET_URL };
   let editingId = null;
   let charts = {};
+  let hasPulledSuccessfully = false;
 
   const $ = (id)=>document.getElementById(id);
 
+  // window.storage only exists inside Claude.ai artifacts. This file now also runs as a
+  // standalone page on GitHub Pages, where window.storage does NOT exist - so we fall back
+  // to the browser's real localStorage there, which persists properly per-device.
+  const storageAdapter = {
+    async get(key){
+      if(window.storage){ try{ return await window.storage.get(key); }catch(e){ return null; } }
+      try{ const v = localStorage.getItem(key); return v!==null ? {value:v} : null; }catch(e){ return null; }
+    },
+    async set(key, value){
+      if(window.storage){ try{ return await window.storage.set(key, value); }catch(e){ return null; } }
+      try{ localStorage.setItem(key, value); return {value}; }catch(e){ return null; }
+    }
+  };
+
   async function loadData(){
-    try{ const f = await window.storage.get('visit_families'); if(f && f.value) families = JSON.parse(f.value); }catch(e){ families = []; }
-    try{ const s = await window.storage.get('visit_settings'); if(s && s.value) settings = Object.assign(settings, JSON.parse(s.value)); }catch(e){}
+    try{ const f = await storageAdapter.get('visit_families'); if(f && f.value) families = JSON.parse(f.value); }catch(e){ families = []; }
+    try{ const s = await storageAdapter.get('visit_settings'); if(s && s.value) settings = Object.assign(settings, JSON.parse(s.value)); }catch(e){}
     settings.sheetUrl = SHEET_URL; // always trust the hardcoded URL in this file, never rely on a stored/older one
     renderAll();
     if(SHEET_URL) pullFromSheet(true);
   }
-  async function saveFamilies(){ try{ await window.storage.set('visit_families', JSON.stringify(families)); }catch(e){ console.error(e); } }
-  async function saveSettings(){ try{ await window.storage.set('visit_settings', JSON.stringify(settings)); }catch(e){ console.error(e); } }
+  async function saveFamilies(){ try{ await storageAdapter.set('visit_families', JSON.stringify(families)); }catch(e){ console.error(e); } }
+  async function saveSettings(){ try{ await storageAdapter.set('visit_settings', JSON.stringify(settings)); }catch(e){ console.error(e); } }
 
   function uid(){ return 'f_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); }
   function calcAge(y,m,d){
@@ -833,8 +848,19 @@
     return list.sort((a,b)=>a.serial-b.serial);
   }
 
-  async function pushToSheet(silent){
+  async function pushToSheet(silent, skipConfirm){
     if(!settings.sheetUrl){ if(!silent) showSyncStatus('يرجى إدخال رابط جوجل شيت أولاً وحفظه.', 'err'); return false; }
+    if(!hasPulledSuccessfully){
+      // SAFETY: never overwrite the sheet with local data before we've confirmed (via a successful
+      // pull) that our local copy actually reflects what's really on the sheet. Without this, a device
+      // with empty/stale local storage could silently wipe out real data on push.
+      showSyncStatus('⚠️ لم تتم أي مزامنة (سحب) ناجحة بعد في هذه الجلسة، فتم إيقاف الرفع حماية للبيانات. اضغط "مزامنة الآن" أولاً، وتأكد إنه نجح، قبل الرفع.', 'err');
+      return false;
+    }
+    if(!silent && !skipConfirm){
+      const ok = confirm('تنبيه: هذا الإجراء سيستبدل كل بيانات "الأسر" و"الأبناء" الموجودة حالياً في جوجل شيت بالبيانات الظاهرة أمامك الآن في هذا الجهاز. هل أنت متأكد؟');
+      if(!ok) return false;
+    }
     if(!silent) showSyncStatus('جارِ رفع البيانات...', 'info');
     try{
       const familyRows = families.map(familyToRow);
@@ -862,6 +888,7 @@
         if(Array.isArray(json.fathers) && json.fathers.length) settings.fathers = json.fathers;
         saveSettings();
         renderAll();
+        hasPulledSuccessfully = true;
         showSyncStatus('تم التحديث من جوجل شيت ✅ — '+families.length+' أسرة، '+settings.streets.length+' شارع، '+settings.fathers.length+' أب اعتراف', 'ok');
         return true;
       }
