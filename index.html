@@ -108,6 +108,14 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
   #printRoot .tw{border:none!important;box-shadow:none!important;overflow:visible!important}
   .pb-after{page-break-after:always}
 }
+.pbar-wrap{position:relative;background:#EDE0C0;border-radius:20px;height:22px;width:100%;min-width:120px;overflow:hidden;border:1px solid var(--border)}
+.pbar-fill{height:100%;border-radius:20px;transition:width .4s}
+.pbar-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--text)}
+.pbar-over{box-shadow:0 0 0 2px var(--gold) inset}
+.eye-btn{width:30px;height:30px;border-radius:6px;border:none;cursor:pointer;font-size:14px;background:var(--blue-bg);color:var(--blue)}
+.eye-btn:hover{background:var(--blue);color:#fff}
+.plan-church-row{display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid var(--border);font-size:13px}
+.plan-church-row:last-child{border-bottom:none}
 @media(max-width:768px){.h-inner{padding:10px 12px}.l2{font-size:15px}.nt{padding:7px 10px;font-size:12px}.section{padding:10px}.cg{grid-template-columns:1fr}.ch{height:200px}}
 </style>
 </head>
@@ -154,6 +162,7 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
       <button class="nt" onclick="showSec('entry',this)">&#x2795; إدخال</button>
       <button class="nt" onclick="showSec('records',this)">&#x1F4CB; سجلات</button>
       <button class="nt" onclick="showSec('reports',this)">&#x1F4C4; تقارير</button>
+      <button class="nt" onclick="showSec('plan',this)">&#x1F4C5; الخطة السنوية</button>
     </nav>
     <button class="btn bb2" onclick="openPrintModal()" style="padding:8px 16px;font-size:13px">&#x1F5A8; طباعة</button>
   </div>
@@ -230,6 +239,51 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
   </div>
 </section>
 
+<section id="sec-plan" class="section">
+  <div class="fc">
+    <div class="ft">&#x1F4C5; الخطة السنوية</div>
+    <div class="fg" style="margin-bottom:16px">
+      <div class="fgr"><label>أمين المحافظة</label><input type="text" id="pl_gov"></div>
+      <div class="fgr"><label>أمين المنطقة</label><input type="text" id="pl_area"></div>
+      <div class="fgr"><label>الأمين المساعد الأول</label><input type="text" id="pl_a1"></div>
+      <div class="fgr"><label>الأمين المساعد الثاني</label><input type="text" id="pl_a2"></div>
+      <div class="fgr"><label>الأمين المساعد الثالث</label><input type="text" id="pl_a3"></div>
+      <div class="fgr"><label>السنة</label><select class="fs" id="pl_year" style="width:100%" onchange="renderPlanTable()"></select></div>
+    </div>
+    <div class="fa" style="margin-top:0;margin-bottom:18px">
+      <button class="btn bp" onclick="savePlanHeader()" id="planSaveBtn">&#x1F4BE; حفظ البيانات الرئيسية</button>
+    </div>
+
+    <div class="tb">
+      <select class="fs" id="pl_filter" onchange="renderPlanTable()" style="min-width:220px">
+        <option value="all">الكل</option>
+        <option value="active">الخدمات الفاعلة (تحقيق أكبر من صفر)</option>
+        <option value="zero">الخدمات الصفرية</option>
+      </select>
+      <span class="pi" id="planCount"></span>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>#</th><th>الخدمة</th><th>نوعية الخدمة</th>
+          <th>المستهدف (كنائس)</th><th>العدد الحالي</th><th>كنائس جديدة</th>
+          <th>هدف التكرار</th><th>التكرار الفعلي</th>
+          <th>نسبة التحقيق</th><th></th>
+        </tr></thead>
+        <tbody id="planBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="mo" id="planDetailModal">
+  <div class="modal" style="max-width:560px">
+    <div class="mh"><div class="mt2" id="planDetailTitle">تفاصيل الخدمة</div><button class="mc" onclick="closeMo('planDetailModal')">&#x2715;</button></div>
+    <div id="planDetailBody" style="max-height:420px;overflow-y:auto"></div>
+  </div>
+</div>
+
 <div class="mo" id="printModal">
   <div class="modal">
     <div class="mh"><div class="mt2">&#x1F5A8; اختر ما تريد طباعته</div><button class="mc" onclick="closeMo('printModal')">&#x2715;</button></div>
@@ -297,6 +351,8 @@ var CURRENT_PWD = localStorage.getItem('curPwd') || '';
 var records=[], lkp=JSON.parse(JSON.stringify(FB)), nextId=1, curPage=1, PAGE=20, filtRecs=[], pendDelId=null, charts={};
 var isOnline=navigator.onLine, offQ=JSON.parse(localStorage.getItem('offQ')||'[]');
 var lastMeta={}, fromSheet=false;
+var PLAN={header:{governorateSecretary:'',areaSecretary:'',assistant1:'',assistant2:'',assistant3:'',currentYear:new Date().getFullYear()},targets:[]};
+var selectedPlanYear=null;
 
 window.addEventListener('online',function(){isOnline=true;setSUI('online');syncQ();});
 window.addEventListener('offline',function(){isOnline=false;setSUI('offline');});
@@ -377,6 +433,7 @@ function loadSheet(manual){
           repetitions:+r.repetitions||0,servants:+r.servants||0,served:+r.served||0,notes:r.notes||''};
       });
       if(d.lookups){lkp=d.lookups;fromSheet=true;}
+      if(d.plan){PLAN=d.plan;localStorage.setItem('cachedPlan',JSON.stringify(PLAN));}
       localStorage.setItem('cachedRecs',JSON.stringify(records));
       localStorage.setItem('cachedLkp',JSON.stringify(lkp));
       afterLoad();
@@ -392,9 +449,10 @@ function loadSheet(manual){
 }
 
 function loadLocal(){
-  var cr=localStorage.getItem('cachedRecs'), cl=localStorage.getItem('cachedLkp');
+  var cr=localStorage.getItem('cachedRecs'), cl=localStorage.getItem('cachedLkp'), cp=localStorage.getItem('cachedPlan');
   records=cr?JSON.parse(cr):[];
   lkp=cl?JSON.parse(cl):{churches:[],services:[],details:[],months:MONTHS,churchMap:{}};
+  PLAN=cp?JSON.parse(cp):PLAN;
   fromSheet=false;
   afterLoad();setSUI('offline');
 }
@@ -422,6 +480,7 @@ function afterLoad(){
   nextId=records.length?Math.max.apply(null,records.map(function(r){return +r.id||0;}))+1:1;
   fillDrops(lkp);
   filterRecs();renderDash();runReport();
+  fillPlanHeader();renderPlanTable();
 }
 
 function fillDrops(L){
@@ -926,6 +985,222 @@ function _printNow(what){
   }
   document.getElementById('printRoot').innerHTML=html;
   setTimeout(function(){window.print();setTimeout(function(){document.getElementById('printRoot').innerHTML='';},1500);},300);
+}
+
+/* ============ الخطة السنوية ============ */
+var lastPlanRows=[];
+
+function isChurchMetric(m){
+  m=m||'';
+  return m.indexOf('\u0643\u0646\u064a\u0633\u0629')!==-1 || m.indexOf('\u0643\u0646\u0627\u0626\u0633')!==-1;
+}
+function shortUnitLabel(m){
+  m=(m||'').replace('\u0639\u062f\u062f','').replace('\u062c\u062f\u064a\u062f\u0629','').replace('\u062c\u062f\u064a\u062f','').replace(/\s+/g,' ').trim();
+  return m;
+}
+function colorForPct(pct){
+  if(pct==null)return '#B0A48A';
+  var p=Math.max(0,Math.min(100,pct));
+  var r,g;
+  if(p<=50){ r=224; g=Math.round(60+(180-60)*(p/50)); }
+  else { r=Math.round(224-(224-46)*((p-50)/50)); g=180+Math.round((125-180)*((p-50)/50)); }
+  var b=50;
+  if(pct>100) return '#8B6914';
+  return 'rgb('+r+','+g+','+b+')';
+}
+
+function fillPlanHeader(){
+  var h=PLAN.header||{};
+  document.getElementById('pl_gov').value=h.governorateSecretary||'';
+  document.getElementById('pl_area').value=h.areaSecretary||'';
+  document.getElementById('pl_a1').value=h.assistant1||'';
+  document.getElementById('pl_a2').value=h.assistant2||'';
+  document.getElementById('pl_a3').value=h.assistant3||'';
+  var yrs=[];
+  (PLAN.targets||[]).forEach(function(t){ if(t.year && yrs.indexOf(t.year)===-1) yrs.push(t.year); });
+  if(h.currentYear && yrs.indexOf(h.currentYear)===-1) yrs.push(h.currentYear);
+  yrs.sort();
+  var sel=document.getElementById('pl_year');
+  sel.innerHTML='';
+  yrs.forEach(function(y){ var o=document.createElement('option'); o.value=y; o.textContent=y; sel.appendChild(o); });
+  selectedPlanYear = h.currentYear && yrs.indexOf(h.currentYear)!==-1 ? h.currentYear : (yrs.length?yrs[yrs.length-1]:new Date().getFullYear());
+  sel.value=selectedPlanYear;
+}
+
+function savePlanHeader(){
+  var payload={
+    action:'savePlanHeader',
+    governorateSecretary:document.getElementById('pl_gov').value,
+    areaSecretary:document.getElementById('pl_area').value,
+    assistant1:document.getElementById('pl_a1').value,
+    assistant2:document.getElementById('pl_a2').value,
+    assistant3:document.getElementById('pl_a3').value,
+    currentYear:document.getElementById('pl_year').value
+  };
+  var btn=document.getElementById('planSaveBtn');
+  btn.disabled=true;btn.textContent='...';
+  sendData(payload).then(function(){
+    PLAN.header.governorateSecretary=payload.governorateSecretary;
+    PLAN.header.areaSecretary=payload.areaSecretary;
+    PLAN.header.assistant1=payload.assistant1;
+    PLAN.header.assistant2=payload.assistant2;
+    PLAN.header.assistant3=payload.assistant3;
+    PLAN.header.currentYear=payload.currentYear;
+    localStorage.setItem('cachedPlan',JSON.stringify(PLAN));
+    btn.disabled=false;btn.innerHTML='&#x1F4BE; \u062d\u0641\u0638 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629';
+    showToast('\u062a\u0645 \u0627\u0644\u062d\u0641\u0638','success');
+  });
+}
+
+function groupTargetsByService(year){
+  var groups={};
+  (PLAN.targets||[]).forEach(function(t){
+    if(String(t.year)!==String(year))return;
+    var key=t.service;
+    if(!groups[key])groups[key]={category:t.category,metrics:[]};
+    groups[key].metrics.push({metric:t.metric,target:+t.target||0});
+  });
+  return groups;
+}
+
+function computePlanRows(year){
+  var groups=groupTargetsByService(year);
+  var rows=[];
+  Object.keys(groups).forEach(function(svc){
+    var g=groups[svc];
+    var targetChurches=0, targetReps=null, repsUnit='';
+    g.metrics.forEach(function(m){
+      if(isChurchMetric(m.metric)) targetChurches=m.target;
+      else { targetReps=m.target; repsUnit=shortUnitLabel(m.metric); }
+    });
+    var yrRecs=records.filter(function(r){return r.service===svc && String(r.year)===String(year);});
+    var churchSet={};
+    yrRecs.forEach(function(r){ if(r.church) churchSet[r.church]=1; });
+    var currentChurches=Object.keys(churchSet).length;
+    var currentReps=yrRecs.reduce(function(s,r){return s+(+r.repetitions||0);},0);
+
+    var newChurches=null;
+    if(+year>=2027){
+      var histSet={};
+      records.forEach(function(r){ if(r.service===svc && +r.year<+year && r.church) histSet[r.church]=1; });
+      var nc=0;
+      Object.keys(churchSet).forEach(function(c){ if(!histSet[c]) nc++; });
+      newChurches=nc;
+    }
+
+    var pctChurches = targetChurches>0 ? (currentChurches/targetChurches*100) : null;
+    var pctReps = (targetReps!=null && targetReps>0) ? (currentReps/targetReps*100) : null;
+    var overallPct=null;
+    if(pctChurches!=null && pctReps!=null) overallPct=(pctChurches+pctReps)/2;
+    else if(pctChurches!=null) overallPct=pctChurches;
+    else if(pctReps!=null) overallPct=pctReps;
+
+    rows.push({
+      service:svc, category:g.category,
+      targetChurches:targetChurches, currentChurches:currentChurches, newChurches:newChurches,
+      targetReps:targetReps, repsUnit:repsUnit, currentReps:currentReps,
+      overallPct:overallPct
+    });
+  });
+  rows.sort(function(a,b){
+    var av=a.overallPct==null?-1:a.overallPct;
+    var bv=b.overallPct==null?-1:b.overallPct;
+    return bv-av;
+  });
+  return rows;
+}
+
+function populatePlanFilter(year, rows){
+  var sel=document.getElementById('pl_filter');
+  if(sel.getAttribute('data-year')===String(year))return;
+  sel.setAttribute('data-year',String(year));
+  sel.innerHTML='<option value="all">\u0627\u0644\u0643\u0644</option>'+
+    '<option value="active">\u0627\u0644\u062e\u062f\u0645\u0627\u062a \u0627\u0644\u0641\u0627\u0639\u0644\u0629 (\u062a\u062d\u0642\u064a\u0642 \u0623\u0643\u0628\u0631 \u0645\u0646 \u0635\u0641\u0631)</option>'+
+    '<option value="zero">\u0627\u0644\u062e\u062f\u0645\u0627\u062a \u0627\u0644\u0635\u0641\u0631\u064a\u0629</option>';
+  rows.slice().sort(function(a,b){return a.service.localeCompare(b.service,'ar');}).forEach(function(r){
+    var o=document.createElement('option'); o.value='svc:'+r.service; o.textContent=r.service; sel.appendChild(o);
+  });
+}
+
+function renderPlanTable(){
+  var yrSel=document.getElementById('pl_year');
+  if(!yrSel.value && selectedPlanYear) yrSel.value=selectedPlanYear;
+  var year=yrSel.value||selectedPlanYear||new Date().getFullYear();
+  selectedPlanYear=year;
+  var allRows=computePlanRows(year);
+  populatePlanFilter(year, allRows);
+  var f=document.getElementById('pl_filter').value||'all';
+  var rows=allRows;
+  if(f==='active') rows=allRows.filter(function(r){return r.overallPct!=null && r.overallPct>0;});
+  else if(f==='zero') rows=allRows.filter(function(r){return r.overallPct===0;});
+  else if(f.indexOf('svc:')===0){ var svcName=f.slice(4); rows=allRows.filter(function(r){return r.service===svcName;}); }
+
+  lastPlanRows=rows;
+  document.getElementById('planCount').textContent=rows.length+' \u062e\u062f\u0645\u0629';
+
+  if(!rows.length){
+    document.getElementById('planBody').innerHTML='<tr><td colspan="10"><div class="es"><div class="ei">&#x1F4ED;</div>\u0644\u0627 \u062a\u0648\u062c\u062f \u0628\u064a\u0627\u0646\u0627\u062a \u062e\u0637\u0629 \u0644\u0647\u0630\u0647 \u0627\u0644\u0633\u0646\u0629</div></td></tr>';
+    return;
+  }
+
+  document.getElementById('planBody').innerHTML=rows.map(function(r,i){
+    var pct=r.overallPct;
+    var pctTxt=pct==null?'\u2014':Math.round(pct)+'%';
+    var fillW=pct==null?0:Math.min(pct,100);
+    var color=colorForPct(pct);
+    var overCls=(pct!=null && pct>100)?' pbar-over':'';
+    var overBadge=(pct!=null && pct>100)?' &#x1F31F;':'';
+    var repsCell = r.targetReps!=null
+      ? r.targetReps+' <span style="color:var(--muted);font-size:11px">('+r.repsUnit+')</span>'
+      : '\u2014';
+    var repsActual = r.targetReps!=null ? r.currentReps : '\u2014';
+    var newChTxt = r.newChurches==null ? '\u2014' : r.newChurches;
+    return '<tr>'+
+      '<td>'+(i+1)+'</td>'+
+      '<td><b>'+r.service+'</b></td>'+
+      '<td><span class="badge bdt">'+(r.category||'')+'</span></td>'+
+      '<td>'+r.targetChurches+'</td>'+
+      '<td>'+r.currentChurches+'</td>'+
+      '<td>'+newChTxt+'</td>'+
+      '<td>'+repsCell+'</td>'+
+      '<td>'+repsActual+'</td>'+
+      '<td><div class="pbar-wrap"><div class="pbar-fill'+overCls+'" style="width:'+fillW+'%;background:'+color+'"></div><div class="pbar-txt">'+pctTxt+overBadge+'</div></div></td>'+
+      '<td><button class="eye-btn" onclick="openPlanDetailByIndex('+i+')" title="\u0639\u0631\u0636 \u0627\u0644\u062a\u0641\u0627\u0635\u064a\u0644">&#x1F441;</button></td>'+
+      '</tr>';
+  }).join('');
+}
+
+function openPlanDetailByIndex(i){
+  var r=lastPlanRows[i];
+  if(!r)return;
+  openPlanDetail(r.service, selectedPlanYear);
+}
+
+function openPlanDetail(service, year){
+  document.getElementById('planDetailTitle').textContent=service+' \u2014 '+year;
+  var yrRecs=records.filter(function(r){return r.service===service && String(r.year)===String(year);});
+  var byChurch={};
+  yrRecs.forEach(function(r){
+    if(!r.church)return;
+    if(!byChurch[r.church]) byChurch[r.church]={reps:0,served:0,count:0};
+    byChurch[r.church].reps+=(+r.repetitions||0);
+    byChurch[r.church].served+=(+r.served||0);
+    byChurch[r.church].count++;
+  });
+  var names=Object.keys(byChurch).sort(function(a,b){return a.localeCompare(b,'ar');});
+  var hasReps=names.some(function(n){return byChurch[n].reps>0;});
+  var html;
+  if(!names.length){
+    html='<div class="es"><div class="ei">&#x1F4ED;</div>\u0644\u0627 \u062a\u0648\u062c\u062f \u0643\u0646\u0627\u0626\u0633 \u0645\u0633\u062c\u0644\u0629 \u0644\u0647\u0630\u0647 \u0627\u0644\u062e\u062f\u0645\u0629 \u0641\u064a \u0647\u0630\u0647 \u0627\u0644\u0633\u0646\u0629</div>';
+  } else {
+    html=names.map(function(n){
+      var d=byChurch[n];
+      var extra=hasReps ? ('\u0627\u0644\u062a\u0643\u0631\u0627\u0631: '+d.reps) : ('\u0627\u0644\u0645\u062e\u062f\u0648\u0645\u0648\u0646: '+d.served);
+      return '<div class="plan-church-row"><span>'+n+'</span><span style="color:var(--muted)">'+extra+'</span></div>';
+    }).join('');
+  }
+  document.getElementById('planDetailBody').innerHTML=html;
+  document.getElementById('planDetailModal').classList.add('open');
 }
 
 function showToast(msg,type){
