@@ -257,8 +257,8 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
     <div class="tb">
       <select class="fs" id="pl_filter" onchange="renderPlanTable()" style="min-width:220px">
         <option value="all">الكل</option>
-        <option value="active">الخدمات الفاعلة (تحقيق أكبر من صفر)</option>
-        <option value="zero">الخدمات الصفرية</option>
+        <option value="active">الخدمات المتحققة فعلياً</option>
+        <option value="zero">الخدمات التي لم تتحقق</option>
       </select>
       <span class="pi" id="planCount"></span>
     </div>
@@ -267,8 +267,8 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
       <table>
         <thead><tr>
           <th>#</th><th>الخدمة</th><th>نوعية الخدمة</th>
-          <th>المستهدف (كنائس)</th><th>العدد الحالي</th><th>كنائس جديدة</th>
-          <th>هدف التكرار</th><th>التكرار الفعلي</th>
+          <th>المستهدف (كنائس)</th><th>متحقق (كنائس)</th><th>كنائس جديدة</th>
+          <th>المستهدف (تفاصيل)</th><th>متحقق (تفاصيل)</th>
           <th>نسبة التحقيق</th><th></th>
         </tr></thead>
         <tbody id="planBody"></tbody>
