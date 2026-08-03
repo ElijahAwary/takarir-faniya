@@ -242,14 +242,16 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
 <section id="sec-plan" class="section">
   <div class="fc">
     <div class="ft">&#x1F4C5; الخطة السنوية</div>
+        <div class="fgr"><label>السنة</label><select class="fs" id="pl_year" style="width:12%" onchange="renderPlanTable()"></select></div>
     <div class="fg" style="margin-bottom:16px">
       <div class="fgr"><label>أمين المحافظة</label><input type="text" id="pl_gov"></div>
       <div class="fgr"><label>مساعد أمين المحافظة</label><input type="text" id="pl_cogov"></div>
       <div class="fgr"><label>أمين الإيبارشية</label><input type="text" id="pl_area"></div>
+    <div class="fg" style="margin-bottom:16px"></div>
+    <div class="fg" style="margin-bottom:16px"></div>
       <div class="fgr"><label>مساعد أول -  قطاع الهرم و فيصل</label><input type="text" id="pl_a1"></div>
       <div class="fgr"><label>مساعد ثان - قطاع الدقي . أرض اللواء . بولاق</label><input type="text" id="pl_a2"></div>
       <div class="fgr"><label>مساعد ثالث - قطاع وسط و عمرانية</label><input type="text" id="pl_a3"></div>
-      <div class="fgr"><label>السنة</label><select class="fs" id="pl_year" style="width:100%" onchange="renderPlanTable()"></select></div>
     </div>
     <div class="fa" style="margin-top:0;margin-bottom:18px">
       <button class="btn bp" onclick="savePlanHeader()" id="planSaveBtn">&#x1F4BE; حفظ البيانات الرئيسية</button>
