@@ -170,17 +170,16 @@ tr:nth-child(even) td{background:var(--s2)}tr:hover td{background:var(--gold-bg)
 
 <section id="sec-dashboard" class="section active">
   <div class="sg" id="statsGrid"></div>
-  <div class="cg" id="planChartsGrid" style="margin-top:0">
-    <div class="cc"><div class="ct">&#x1F3DB; نسب تحقيق مستهدف الكنائس</div><div class="ch" style="height:280px"><canvas id="cPlanChurches"></canvas></div></div>
-    <div class="cc"><div class="ct">&#x1F4C8; نسب تحقيق مستهدف المخطط</div><div class="ch" style="height:280px"><canvas id="cPlanReps"></canvas></div></div>
-  </div>
   <div class="cg">
     <div class="cc"><div class="ct">المخدومون حسب الخدمة</div><div class="ch"><canvas id="cSvc"></canvas></div></div>
     <div class="cc"><div class="ct">النشاط الشهري</div><div class="ch"><canvas id="cMon"></canvas></div></div>
     <div class="cc"><div class="ct">توزيع الخدمات على الكنائس</div><div class="ch"><canvas id="cDet"></canvas></div></div>
     <div class="cc"><div class="ct">أكثر الكنائس نشاطاً</div><div class="ch"><canvas id="cCh"></canvas></div></div>
   </div>
-
+  <div class="cg" id="planChartsGrid" style="margin-top:0">
+    <div class="cc"><div class="ct">&#x1F3DB; نسب تحقيق مستهدف الكنائس</div><div class="ch" style="height:280px"><canvas id="cPlanChurches"></canvas></div></div>
+    <div class="cc"><div class="ct">&#x1F4C8; نسب تحقيق مستهدف المخطط</div><div class="ch" style="height:280px"><canvas id="cPlanReps"></canvas></div></div>
+  </div>
 </section>
 
 <section id="sec-entry" class="section">
@@ -424,9 +423,45 @@ function gasPost(pl){
 }
 
 function init(){
-  showL('\u062c\u0627\u0631\u064a \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a...');
-  fillDrops(FB);
-  loadSheet(false);
+  /* ① عرض الواجهة فوراً من الكاش المحلي إن وُجد */
+  var hasCachedData=!!localStorage.getItem('cachedRecs');
+  if(hasCachedData){
+    loadLocal();
+    _silentSync();
+  } else {
+    /* أول تشغيل: لا كاش → انتظر الخادم */
+    showL('\u062c\u0627\u0631\u064a \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a...');
+    fillDrops(FB);
+    loadSheet(false);
+  }
+}
+
+function _silentSync(){
+  if(!isOnline)return;
+  setSUI('syncing','\u0645\u0632\u0627\u0645\u0646\u0629...');
+  gasGet().then(function(d){
+    if(d&&d.status==='ok'){
+      records=(d.records||[]).filter(function(r){return r.church||r.service||r.topic;}).map(function(r){
+        return {id:+r.id||0,year:+r.year||2026,month:r.month||'',date:r.date||'',
+          church:r.church||'',location:r.location||'',diocese:r.diocese||'',governorate:r.governorate||'',
+          service:r.service||'',detail:r.detail||'',topic:r.topic||'',speaker:r.speaker||'',
+          repetitions:+r.repetitions||0,servants:+r.servants||0,served:+r.served||0,notes:r.notes||''};
+      });
+      if(d.lookups){lkp=d.lookups;fromSheet=true;}
+      if(d.plan){
+        var prevCogov=(PLAN.header&&PLAN.header.coGovernorateSecretary)||localStorage.getItem('cogov_backup')||'';
+        PLAN=d.plan;if(!PLAN.header)PLAN.header={};
+        if(!PLAN.header.coGovernorateSecretary&&prevCogov)PLAN.header.coGovernorateSecretary=prevCogov;
+        localStorage.setItem('cachedPlan',JSON.stringify(PLAN));
+      }
+      localStorage.setItem('cachedRecs',JSON.stringify(records));
+      localStorage.setItem('cachedLkp',JSON.stringify(lkp));
+      afterLoad();
+      setSUI('online','\u0645\u062a\u0635\u0644 \u2014 '+records.length+' \u0633\u062c\u0644');
+    } else {
+      setSUI('error','\u064a\u0639\u0645\u0644 \u0628\u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a \u0627\u0644\u0645\u062d\u0644\u064a\u0629');
+    }
+  });
 }
 
 function loadSheet(manual){
@@ -442,7 +477,14 @@ function loadSheet(manual){
           repetitions:+r.repetitions||0,servants:+r.servants||0,served:+r.served||0,notes:r.notes||''};
       });
       if(d.lookups){lkp=d.lookups;fromSheet=true;}
-      if(d.plan){PLAN=d.plan;localStorage.setItem('cachedPlan',JSON.stringify(PLAN));}
+      if(d.plan){
+        /* احتفظ بالقيم المحلية التي قد لا يُعيدها الخادم */
+        var prevCogov=(PLAN.header&&PLAN.header.coGovernorateSecretary)||localStorage.getItem('cogov_backup')||'';
+        PLAN=d.plan;
+        if(!PLAN.header)PLAN.header={};
+        if(!PLAN.header.coGovernorateSecretary&&prevCogov)PLAN.header.coGovernorateSecretary=prevCogov;
+        localStorage.setItem('cachedPlan',JSON.stringify(PLAN));
+      }
       localStorage.setItem('cachedRecs',JSON.stringify(records));
       localStorage.setItem('cachedLkp',JSON.stringify(lkp));
       afterLoad();
@@ -1127,8 +1169,9 @@ function savePlanHeader(){
       PLAN.header.assistant2=payload.assistant2;
       PLAN.header.assistant3=payload.assistant3;
       PLAN.header.currentYear=payload.currentYear;
+      localStorage.setItem('cogov_backup',payload.coGovernorateSecretary);
       localStorage.setItem('cachedPlan',JSON.stringify(PLAN));
-      showToast('\u062a\u0645 \u0627\u0644\u062d\u0641\u0638 \u0641\u0639\u0644\u064a\u0627\u064b \u0641\u064a \u0627\u0644\u0634\u064a\u062a','success');
+      showToast('تم الحفظ فعلياً في الشيت','success');
     } else if(res && res.status==='queued'){
       PLAN.header.governorateSecretary=payload.governorateSecretary;
       PLAN.header.coGovernorateSecretary=payload.coGovernorateSecretary;
@@ -1137,6 +1180,7 @@ function savePlanHeader(){
       PLAN.header.assistant2=payload.assistant2;
       PLAN.header.assistant3=payload.assistant3;
       PLAN.header.currentYear=payload.currentYear;
+      localStorage.setItem('cogov_backup',payload.coGovernorateSecretary);
       localStorage.setItem('cachedPlan',JSON.stringify(PLAN));
       showToast('حُفظ محلياً وسيُزامن عند عودة الاتصال','warning');
     }
